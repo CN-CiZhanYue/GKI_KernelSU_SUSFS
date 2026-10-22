@@ -717,6 +717,26 @@ jobs:
           ' "$KBUILD_FILE" > "${KBUILD_FILE}.tmp" && mv "${KBUILD_FILE}.tmp" "$KBUILD_FILE"
 
           echo "已更新 get_ksu_version_full 模板: $VERSION_TEMPLATE"
+          
+      - name: 绕过 BakaSU/SukiSU 的 SUSFS 兼容性强制检查
+        if: inputs.enable_susfs && inputs.ksu_mode != '禁用KSU' && (startsWith(inputs.ksu_variant, 'SukiSU') || inputs.ksu_variant == 'BakaSU')
+        working-directory: ${{ env.KERNEL_ROOT }}
+        run: |
+          COMPAT_FILE="./KernelSU/kernel/tools/susfs_compat.mk"
+          if [ ! -f "$COMPAT_FILE" ]; then
+            echo "未找到 $COMPAT_FILE，跳过"
+            exit 0
+          fi
+        
+          if grep -q 'susfs has NOT update with latest KernelSU source' "$COMPAT_FILE"; then
+            echo "检测到 susfs_compat.mk 的强制停止检查，正在移除..."
+            sed -i '/susfs has NOT update with latest KernelSU source/,+2d' "$COMPAT_FILE"
+            echo "已绕过 BakaSU/SukiSU 的 SUSFS 等待检查"
+            echo "------ 修改后尾部 10 行 ------"
+            tail -10 "$COMPAT_FILE"
+          else
+            echo "susfs_compat.mk 中未找到目标字符串（上游可能已修复），跳过"
+          fi
 
       # 在内核源码和 KSU 准备完成后再获取 SUSFS，避免在前期集中拉取。
       - name: 克隆 SUSFS 源码
